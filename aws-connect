@@ -1,0 +1,57 @@
+#!/bin/bash
+
+realpath() {
+    [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"
+}
+
+function connect {
+    instance=$(python -c "import aws_connect; aws_connect.getConnectURL(\"$1\")")
+	if [ "$instance" = "Instance not found!" ]; then
+		echo $instance
+    elif [ -z $instance ]; then
+        while true
+        do
+            read -p "Instance is stopped, would you like to start it (yes/no)? " choice
+            case "$choice" in
+                y|Y|yes|Yes) 
+                    echo "Starting instance..."
+                    python -c "import aws_connect; aws_connect.startEC2(\"$1\")"
+                    break
+                    ;;
+                n|N|no|No)
+                    echo "Exiting..."
+                    break
+                    ;;
+            esac
+        done
+	else
+        if [ $# -eq "2" ]; then
+    		ssh -i $2 ubuntu@$instance
+        else 
+            ssh ubuntu@$instance
+        fi
+	fi
+}
+
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+case $1 in 
+    "list") 
+        if [ $# -eq "1" ]; then
+            python -c "import aws_connect; aws_connect.listInstances()"
+        else 
+            python -c "import aws_connect; aws_connect.getConnectURL(\"$2\")"
+        fi
+    ;;
+    *) 
+        if [ $# -eq "1" ]; then
+            connect $1
+        elif [ $# -gt "1" ]; then
+            p=$(realpath $2)
+            connect $1 $p
+        else
+            echo "usage: aws-connect <(list [instance-name] | <instance-name>)> [<.pem file>]"
+        fi
+    ;;
+esac
+
